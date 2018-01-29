@@ -6,13 +6,7 @@ Created on Thu Oct 05 14:55:32 2017
 """
 
 import numpy as np
-#from matplotlib import pyplot as pl
-#from glob import glob
-#from scipy.optimize import curve_fit
-#from scipy.interpolate import UnivariateSpline
-#from matplotlib import rc,cm
-from useful_stuff.useful import *
-#from matplotlib import rc_params as params
+#from useful_stuff.useful import *
 
 import visa
 rm=visa.ResourceManager()
