@@ -11,7 +11,7 @@ from capacitance_GUI_new import *
 from matplotlib import rc
 import matplotlib.pyplot as pl
 import numpy as np
-from useful_stuff.useful import *
+#from useful_stuff.useful import *
 import time
 #import visa
 
@@ -120,16 +120,19 @@ class GUI_capacitance(QtGui.QMainWindow):
 
         '''create and connect timers'''
         self.timer_data_wk1_only = QtCore.QTimer(self)
-        QtCore.QObject.connect(self.timer_data_wk1_only, QtCore.SIGNAL("timeout()"), self.update_temp_measurment_wk_only)
+        QtCore.QObject.connect(self.timer_data_wk1_only, QtCore.SIGNAL("timeout()"), self.update_data_wk_only)
         
         self.timer_data_wk1 = QtCore.QTimer(self)
-        QtCore.QObject.connect(self.timer_data_wk1, QtCore.SIGNAL("timeout()"), self.update_temp_measurment1)
+        QtCore.QObject.connect(self.timer_data_wk1, QtCore.SIGNAL("timeout()"), self.update_temp_measurment_wk1)
         
         self.timer_data_wk2 = QtCore.QTimer(self)
-        QtCore.QObject.connect(self.timer_data_wk2, QtCore.SIGNAL("timeout()"), self.update_temp_measurment2)
+        QtCore.QObject.connect(self.timer_data_wk2, QtCore.SIGNAL("timeout()"), self.update_temp_measurment_wk2)
 
         self.timer_data_ah1 = QtCore.QTimer(self)
-        QtCore.QObject.connect(self.timer_data_ah1, QtCore.SIGNAL("timeout()"), self.update_temp_measurment1)
+        QtCore.QObject.connect(self.timer_data_ah1, QtCore.SIGNAL("timeout()"), self.update_temp_measurment_ah1)
+        
+        self.timer_data_ah2 = QtCore.QTimer(self)
+        QtCore.QObject.connect(self.timer_data_ah2, QtCore.SIGNAL("timeout()"), self.update_temp_measurment_ah2)
                 
         self.timer_temp = QtCore.QTimer(self)
         QtCore.QObject.connect(self.timer_temp, QtCore.SIGNAL("timeout()"), self.update_temp)
@@ -147,7 +150,7 @@ class GUI_capacitance(QtGui.QMainWindow):
         self.ui.pushButton_WK_settings.clicked.connect(self.set_wk_settings)
         
         self.ui.pushButton_measurement_start.clicked.connect(self.initialize_measurement)
-        self.ui.pushButton_measurement_stop.clicked.connect(self.stop_measurement_wk)
+        self.ui.pushButton_measurement_stop.clicked.connect(self.stop_measurement)
         
         
         '''variables'''
@@ -172,8 +175,14 @@ class GUI_capacitance(QtGui.QMainWindow):
             error.exec_()
         elif self.wk_connected and self.ui.groupBox_WK_settings.isChecked:
             self.create_data_file_wk()
+            self.wk_running = True
         elif self.ah_connected and self.ui.groupBox_AH_settings.isChecked:
             self.create_data_file_ah()
+            self.ah_running = True
+        else:
+            error=QtGui.QErrorMessage()
+            error.showMessage('unable to start measurement. are you sure all necessary devices are connected and turned on?')
+            error.exec_()
 
     def create_data_file_wk(self):
         if self.ppms_connected and self.ui.groupBox_measurement.isChecked():
@@ -189,7 +198,7 @@ class GUI_capacitance(QtGui.QMainWindow):
             print(self.fname)
             data=[]
             date=time.asctime()
-            np.savetxt(self.fname, data, delimiter = '\t', header = date + '\n frequency: {} Hz'.format(freq) + '\n voltage: {} V'.format(voltage) + '\n rate: {} K/min'.format(self.rate) +
+            np.savetxt(self.fname, data, delimiter = '\t', header = date + '\n WK measurent' + '\n frequency: {} Hz'.format(freq) + '\n voltage: {} V'.format(voltage) + '\n rate: {} K/min'.format(self.rate) +
             '\n bias: {}, {}'.format(bias[0],bias[1]) +
             '\n speed {}'.format(speed) +
             '\n temperature 1,2 and 3: {}, {}, {}'.format(self.T1,self.T2,self.T3) +
@@ -209,13 +218,45 @@ class GUI_capacitance(QtGui.QMainWindow):
             print(type(self.fname))
             data=[]
             date=time.asctime()
-            np.savetxt(self.fname, data, delimiter = '\t', header = date + '\n frequency: {} Hz'.format(freq) + '\n voltage: {} V'.format(voltage)  +
+            np.savetxt(self.fname, data, delimiter = '\t', header = date + '\n WK measurent' + '\n frequency: {} Hz'.format(freq) + '\n voltage: {} V'.format(voltage)  +
             '\n bias: {}, {}'.format(bias[0],bias[1]) +
             '\n speed {}'.format(speed) +
             '\n time (s) \t capacitance \t loss D')
             self.start_measurement_wk_only()
 
-            
+    def create_data_file_ah(self):
+        if self.ppms_connected and self.ui.groupBox_measurement.isChecked():
+            l=self.ah.get_voltage()
+            a=self.ah.get_average()
+            temp,self.rate,mode=self.ppms.get_temperature_setpoint()      
+            self.T1=float(self.ui.lineEdit_measurement_temp_start.text())
+            self.T2=float(self.ui.lineEdit_measurement_temp_2.text())
+            self.T3=float(self.ui.lineEdit_measurement_temp_final.text())        
+            self.fname = str(QtGui.QFileDialog.getSaveFileName(self, 'Filename','','*.txt'))
+            print(self.fname)
+            data=[]
+            date=time.asctime()
+            np.savetxt(self.fname, data, delimiter = '\t', header = date + '\n AH measurent' + '\n frequency: 1 Hz' + '\n voltage: {} V'.format(l) + '\n rate: {} K/min'.format(self.rate) +
+            '\n average {}'.format(a) +
+            '\n temperature 1,2 and 3: {}, {}, {}'.format(self.T1,self.T2,self.T3) +
+            '\n time (s) \t PPMS time (s) \t Status \t PPMS temperature (K) \t field (Oe) \t resistance CH1 \t excitation Ch1 \t sample temperature \t capacitance \t loss D \t applied voltage')
+            self.ui.label_setpoint_value.setText(str(self.T2)+' K')  
+            self.ui.groupBox_temperature.setChecked(False)
+            self.ui.groupBox_AH_settings.setChecked(False)
+            self.ui.groupBox_WK_settings.setChecked(False)
+            self.start_measurement_ah()
+        else:
+            l=self.ah.get_voltage()
+            a=self.ah.get_average()
+            self.fname = str(QtGui.QFileDialog.getSaveFileName(self, 'Filename','','*.txt'))
+            print(self.fname)
+            print(type(self.fname))
+            data=[]
+            date=time.asctime()
+            np.savetxt(self.fname, data, delimiter = '\t', header = date + '\n AH measurent' + '\n frequency: 1 kHz' + '\n voltage: {} V'.format(l)  +
+            '\n average {}'.format(a) +
+            '\n time (s) \t capacitance \t loss D \t applied voltage')
+            self.start_measurement_ah_only()            
 
     
     def start_measurement_wk(self):
@@ -243,6 +284,31 @@ class GUI_capacitance(QtGui.QMainWindow):
         else:
             self.start_measurement_wk()
             
+    def start_measurement_ah(self):
+        temp=self.ppms.get_temperature()
+        if np.abs(temp-self.T1)<0.02:
+            self.timer_temp.stop()
+            num_points=int(np.abs(self.T1-self.T2)/self.delta)
+            self.temperature_steps=np.linspace(self.T1,self.T2,num_points+1)        
+            self.running=True
+            self.t0=time.time()
+            try:
+                d=self.ppms.get_important_data()
+            except:
+                logger.info('error when reading important data from PPMS')
+            try:
+                t=time.time()-self.t0
+                C, D, V=self.ah.get_value()
+            except:
+                logger.info('error when reading important data from AH2550a')
+            T=x124321_R2Temp(d[4])
+            d=np.hstack([t,d,T,C,D,V])
+            self.data=d        
+            self.timer_data_ah1.start(1000)
+            self.ppms.set_temperature(self.T2,self.rate,1)
+        else:
+            self.start_measurement_ah()
+            
     def start_measurement_wk_only(self):
         self.running=True
         self.t0=time.time()
@@ -253,14 +319,18 @@ class GUI_capacitance(QtGui.QMainWindow):
             logger.info('error when reading important data from WK6440a')
         d=np.hstack([t,C,D])  
         self.data=d        
-        self.timer_data_wk1_only.start(1000)
+        self.timer_data_wk1_only.start(500)
         
         
-    def stop_measurement_wk(self):
+    def stop_measurement(self):
         if self.ppms_connected:
-            self.running=False
+            self.running = False
+            self.wk_running = False
+            self.ah_running = False
             self.timer_data_wk1.stop()
             self.timer_data_wk2.stop()
+            self.timer_data_ah1.stop()
+            self.timer_data_ah2.stop()
             self.ui.groupBox_temperature.setCheckable(True)
             self.ui.groupBox_temperature.setChecked(True)
             self.timer_temp.start(1000)
@@ -270,9 +340,8 @@ class GUI_capacitance(QtGui.QMainWindow):
         
 
 
-    def update_temp_measurment1(self):
+    def update_temp_measurment_wk1(self):
         temp=self.ppms.get_temperature()
-#        temp=self.get_sample_temperature()
         if self.T1>self.T2:
             if (temp-self.temperature_steps[self.temperature_index])<0.02:
                 self.update_data_wk()
@@ -296,8 +365,34 @@ class GUI_capacitance(QtGui.QMainWindow):
             pass
         self.ui.lcd_label_temperature.display('{0:.2f}'.format(temp))
         
+    
+    def update_temp_measurment_ah1(self):
+        temp=self.ppms.get_temperature()
+        if self.T1>self.T2:
+            if (temp-self.temperature_steps[self.temperature_index])<0.02:
+                self.update_data_ah()
+                self.temperature_index=self.temperature_index+1
+            else:
+                pass
+        else:
+            if (self.temperature_steps[self.temperature_index]-temp)<0.02:
+                self.update_data_ah()
+                self.temperature_index=self.temperature_index+1
+            else:
+                pass
+        if self.temperature_index==len(self.temperature_steps):
+            self.timer_data_ah1.stop()
+            self.temperature_index=0
+            self.running=False
+            self.wait=True
+            QtCore.QTimer.singleShot(10000, self.wait_for_turnaround_ah)
+            print 'wait 10 seconds'
+        else:
+            pass
+        self.ui.lcd_label_temperature.display('{0:.2f}'.format(temp))
         
-    def update_temp_measurment2(self):
+        
+    def update_temp_measurment_wk2(self):
         temp=self.ppms.get_temperature()
 #        temp=self.get_sample_temperature()
         if self.T2>self.T3:
@@ -313,13 +408,31 @@ class GUI_capacitance(QtGui.QMainWindow):
             else:
                 pass
         if self.temperature_index==len(self.temperature_steps):
-            self.stop_measurement_wk()
+            self.stop_measurement()
         else:
             pass
         self.ui.lcd_label_temperature.display('{0:.2f}'.format(temp))
         
-    def update_temp_measurment_wk_only(self):
-        self.update_data_wk_only()
+    def update_temp_measurment_ah2(self):
+        temp=self.ppms.get_temperature()
+        if self.T2>self.T3:
+            if (temp-self.temperature_steps[self.temperature_index])<0.02:
+                self.update_data_ah()
+                self.temperature_index=self.temperature_index+1
+            else:
+                pass
+        else:
+            if (self.temperature_steps[self.temperature_index]-temp)<0.02:
+                self.update_data_ah()
+                self.temperature_index=self.temperature_index+1
+            else:
+                pass
+        if self.temperature_index==len(self.temperature_steps):
+            self.stop_measurement()
+        else:
+            pass
+        self.ui.lcd_label_temperature.display('{0:.2f}'.format(temp))
+        
 
 
     def wait_for_turnaround(self):
@@ -340,7 +453,7 @@ class GUI_capacitance(QtGui.QMainWindow):
                 t=time.time()-self.t0
                 C,D=self.wk.measure_data()
             except:
-                logger.info('error when reading important data from WK6440a')
+                logger.info('error when reading important data from AH2550a')
             T=x124321_R2Temp(d[4])
             d=np.hstack([t,d,T,C,D])
             self.data=np.vstack([self.data,d])
@@ -349,6 +462,35 @@ class GUI_capacitance(QtGui.QMainWindow):
             self.ppms.set_temperature(self.T3,self.rate,1)
         else:
             self.wait_for_turnaround()
+            print(temp)
+            
+    def wait_for_turnaround_ah(self):
+        if self.wait:
+            self.wait=False
+            num_points=int(np.abs(self.T2-self.T3)/self.delta)
+            self.temperature_steps=np.linspace(self.T2,self.T3,num_points+1)
+        else:
+            pass
+        temp=self.ppms.get_temperature()
+        if np.abs(temp-self.T2)<0.02:     
+            self.running=True
+            try:
+                d=self.ppms.get_important_data()
+            except:
+                logger.info('error when reading important data from PPMS')
+            try:
+                t=time.time()-self.t0
+                C, D, V=self.ah.get_value()
+            except:
+                logger.info('error when reading important data from WK6440a')
+            T=x124321_R2Temp(d[4])
+            d=np.hstack([t,d,T,C,D,V])
+            self.data=np.vstack([self.data,d])
+            self.timer_data_ah2.start(1000)
+            self.ui.label_setpoint_value.setText(str(self.T3)+' K') 
+            self.ppms.set_temperature(self.T3,self.rate,1)
+        else:
+            self.wait_for_turnaround_ah()
             print(temp)
 
 
@@ -364,6 +506,25 @@ class GUI_capacitance(QtGui.QMainWindow):
             logger.info('error when reading data from WK6440a')
         T=x124321_R2Temp(d[4])
         d=np.hstack([t,d,T,C,D])
+        print(d)
+        with open(self.fname,'a') as f:
+            f.write('\t'.join(map(str, d))+'\n')
+        self.data=np.vstack([self.data,d])
+        self.ui.pw1p1.setData(x=self.data[:,7],y=self.data[:,8]) 
+        
+        
+    def update_data_ah(self):
+        try:
+            d=self.ppms.get_important_data()
+        except:
+            logging.info('error when reading important data from PPMS')
+        try:
+            t=time.time()-self.t0
+            C, D, V=self.ah.get_value()
+        except:
+            logger.info('error when reading data from WK6440a')
+        T=x124321_R2Temp(d[4])
+        d=np.hstack([t,d,T,C,D,V])
         print(d)
         with open(self.fname,'a') as f:
             f.write('\t'.join(map(str, d))+'\n')
@@ -478,14 +639,6 @@ class GUI_capacitance(QtGui.QMainWindow):
                 pl.close()
 
 
-
-#    def get_sample_temperature(self):
-#        try:
-#            d=self.ppms.get_important_data()
-#        except:
-#            logging.info('error when reading important data from PPMS')
-#        T=x124321_R2Temp(d[4])
-#        return T
 
 
 
