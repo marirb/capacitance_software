@@ -7,7 +7,7 @@ Created on Mon Oct 23 21:29:22 2017
 
 import sys
 import os
-from capacitance_GUI import *
+from capacitance_GUI_new import *
 from matplotlib import rc
 import matplotlib.pyplot as pl
 import numpy as np
@@ -16,11 +16,20 @@ import time
 #import visa
 
 
+try:
+    from ppms.ppms import BLUE_9T_PPMS
+except:
+    pass
 
-from ppms.ppms import BLUE_9T_PPMS
-from wk6440a.wk6440a import WK6440
-from ah2550a.ah2550a import AH2550A
+try:
+    from wk6440a.wk6440a import WK6440
+except:
+    pass
 
+try:
+    from ah2550a.ah2550a import AH2550A
+except:
+    pass
 
 
 
@@ -29,7 +38,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 # create a file handler
 year,month,day=time.gmtime()[:3]
-handler = logging.FileHandler('C:/capacitance_GUI/log/log-{}-{}-{}.log'.format(year,month,day))
+handler = logging.FileHandler('./log/log-{}-{}-{}.log'.format(year,month,day))
 handler.setLevel(logging.INFO)
 # create a logging format
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -56,7 +65,7 @@ class GUI_capacitance(QtGui.QMainWindow):
         self.ui.actionsavepng.triggered.connect(self.savepng)
         
         try:
-#            self.ppms=BLUE_9T_PPMS()
+            self.ppms=BLUE_9T_PPMS()
             self.ppms.set_bridge_channel_configuration(1,500,100)
             T,self.rate,approach=self.ppms.get_temperature_setpoint()
             self.ui.label_setpoint_value.setText(str(T))
@@ -75,7 +84,7 @@ class GUI_capacitance(QtGui.QMainWindow):
             error.exec_()
             
         try:
-#            self.wk=WK6440()
+            self.wk=WK6440()
             f=self.wk.get_freq()
             l=self.wk.get_level()
             s=self.wk.get_speed()
