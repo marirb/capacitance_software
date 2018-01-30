@@ -11,7 +11,7 @@ from capacitance_GUI_new import *
 from matplotlib import rc
 import matplotlib.pyplot as pl
 import numpy as np
-#from useful_stuff.useful import *
+from useful_stuff.useful import *
 import time
 #import visa
 
@@ -107,7 +107,7 @@ class GUI_capacitance(QtGui.QMainWindow):
             a=self.ah.get_average()
             self.ui.label_AH_voltage_value.setText(str(l))
             self.ui.label_AH_average_value.setText(str(a))
-            index = self.ui.spinBox_AH_average.setValue(int(a))
+#            self.ui.spinBox_AH_average.setValue(int(a))
             logger.info('successfully connected to AH2550a')
             self.ah_connected = True
         except:
@@ -121,6 +121,9 @@ class GUI_capacitance(QtGui.QMainWindow):
         '''create and connect timers'''
         self.timer_data_wk1_only = QtCore.QTimer(self)
         QtCore.QObject.connect(self.timer_data_wk1_only, QtCore.SIGNAL("timeout()"), self.update_data_wk_only)
+        
+        self.timer_data_ah1_only = QtCore.QTimer(self)
+        QtCore.QObject.connect(self.timer_data_ah1_only, QtCore.SIGNAL("timeout()"), self.update_data_ah_only)        
         
         self.timer_data_wk1 = QtCore.QTimer(self)
         QtCore.QObject.connect(self.timer_data_wk1, QtCore.SIGNAL("timeout()"), self.update_temp_measurment_wk1)
@@ -152,6 +155,8 @@ class GUI_capacitance(QtGui.QMainWindow):
         self.ui.pushButton_measurement_start.clicked.connect(self.initialize_measurement)
         self.ui.pushButton_measurement_stop.clicked.connect(self.stop_measurement)
         
+        self.ui.groupBox_AH_settings.toggled.connect(self.test)
+        
         
         '''variables'''
         self.running = False
@@ -168,24 +173,27 @@ class GUI_capacitance(QtGui.QMainWindow):
         self.wait=False
 
 
+    def test(self):
+        print self.ui.groupBox_AH_settings.isChecked()
+
     def initialize_measurement(self):
-        if self.wk_connected and self.ui.groupBox_WK_settings.isChecked and self.ah_connected and self.ui.groupBox_AH_settings.isChecked:
+        if self.wk_connected and self.ui.groupBox_WK_settings.isChecked() and self.ah_connected and self.ui.groupBox_AH_settings.isChecked():
             error=QtGui.QErrorMessage()
             error.showMessage('both groupboxes for AH and WK are checked: uncheck one of them to be able to start a measurement')
             error.exec_()
-        elif self.wk_connected and self.ui.groupBox_WK_settings.isChecked:
+        elif self.wk_connected and self.ui.groupBox_WK_settings.isChecked():
+            self.wk_running = True            
             self.create_data_file_wk()
-            self.wk_running = True
-        elif self.ah_connected and self.ui.groupBox_AH_settings.isChecked:
-            self.create_data_file_ah()
+        elif self.ah_connected and self.ui.groupBox_AH_settings.isChecked():
             self.ah_running = True
+            self.create_data_file_ah()
         else:
             error=QtGui.QErrorMessage()
             error.showMessage('unable to start measurement. are you sure all necessary devices are connected and turned on?')
             error.exec_()
 
     def create_data_file_wk(self):
-        if self.ppms_connected and self.ui.groupBox_measurement.isChecked():
+        if self.ppms_connected and self.ui.groupBox_temperature.isChecked():
             voltage=self.wk.get_level()
             freq=self.wk.get_freq()
             temp,self.rate,mode=self.ppms.get_temperature_setpoint()
@@ -225,7 +233,7 @@ class GUI_capacitance(QtGui.QMainWindow):
             self.start_measurement_wk_only()
 
     def create_data_file_ah(self):
-        if self.ppms_connected and self.ui.groupBox_measurement.isChecked():
+        if self.ppms_connected and self.ui.groupBox_temperature.isChecked():
             l=self.ah.get_voltage()
             a=self.ah.get_average()
             temp,self.rate,mode=self.ppms.get_temperature_setpoint()      
@@ -321,6 +329,21 @@ class GUI_capacitance(QtGui.QMainWindow):
         self.data=d        
         self.timer_data_wk1_only.start(500)
         
+    def start_measurement_ah_only(self):
+        self.running=True
+        self.t0=time.time()
+        a=self.ah.get_average()
+        s=0.00773165*np.exp(a**0.82774746)+0.41702379
+        try:
+            t=time.time()-self.t0
+            C,D,V=self.ah.get_value()
+        except:
+            logger.info('error when reading important data from AH2550a')
+        d=np.hstack([t,C,D,V])  
+        self.data=d 
+        self.timer_data_ah1_only.start(1000*s*1.1)
+        
+        
         
     def stop_measurement(self):
         if self.ppms_connected:
@@ -331,8 +354,8 @@ class GUI_capacitance(QtGui.QMainWindow):
             self.timer_data_wk2.stop()
             self.timer_data_ah1.stop()
             self.timer_data_ah2.stop()
-            self.ui.groupBox_temperature.setCheckable(True)
-            self.ui.groupBox_temperature.setChecked(True)
+            self.timer_data_wk1_only.stop() 
+            self.timer_data_ah1_only.stop()
             self.timer_temp.start(1000)
         else:
             self.running=False
@@ -394,7 +417,6 @@ class GUI_capacitance(QtGui.QMainWindow):
         
     def update_temp_measurment_wk2(self):
         temp=self.ppms.get_temperature()
-#        temp=self.get_sample_temperature()
         if self.T2>self.T3:
             if (temp-self.temperature_steps[self.temperature_index])<0.02:
                 self.update_data_wk()
@@ -541,7 +563,20 @@ class GUI_capacitance(QtGui.QMainWindow):
         with open(self.fname,'a') as f:
             f.write('\t'.join(map(str, d))+'\n')
         self.data=np.vstack([self.data,d])
+        self.ui.pw1p1.setData(x=self.data[:,0],y=self.data[:,1]) 
+        
+    def update_data_ah_only(self):
+        try:
+            t=time.time()-self.t0
+            C,D,V=self.ah.get_value()
+        except:
+            logger.info('error when reading data from AH2550a')
+        d=np.hstack([t,C,D,V])
+        with open(self.fname,'a') as f:
+            f.write('\t'.join(map(str, d))+'\n')
+        self.data=np.vstack([self.data, d])
         self.ui.pw1p1.setData(x=self.data[:,0],y=self.data[:,1])
+
         
     def update_temp(self):
         temp=self.ppms.get_temperature()
