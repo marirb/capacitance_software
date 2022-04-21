@@ -174,7 +174,7 @@ class GUI_capacitance(QtGui.QMainWindow):
 
 
     def test(self):
-        print self.ui.groupBox_AH_settings.isChecked()
+        print(self.ui.groupBox_AH_settings.isChecked())
 
     def initialize_measurement(self):
         if self.wk_connected and self.ui.groupBox_WK_settings.isChecked() and self.ah_connected and self.ui.groupBox_AH_settings.isChecked():
@@ -383,7 +383,7 @@ class GUI_capacitance(QtGui.QMainWindow):
             self.running=False
             self.wait=True
             QtCore.QTimer.singleShot(10000, self.wait_for_turnaround)
-            print 'wait 10 seconds'
+            print('wait 10 seconds')
         else:
             pass
         self.ui.lcd_label_temperature.display('{0:.2f}'.format(temp))
@@ -409,7 +409,7 @@ class GUI_capacitance(QtGui.QMainWindow):
             self.running=False
             self.wait=True
             QtCore.QTimer.singleShot(10000, self.wait_for_turnaround_ah)
-            print 'wait 10 seconds'
+            print('wait 10 seconds')
         else:
             pass
         self.ui.lcd_label_temperature.display('{0:.2f}'.format(temp))
